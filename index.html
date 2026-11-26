@@ -409,7 +409,8 @@ $('#chips').addEventListener('click', e => {
   render();
 });
 
-fetch('data/parking.json').then(r => r.json()).then(d => {
+fetch('data/parking.json', {cache: 'no-cache'}).then(r => r.json()).then(d => {
+  if (!d.cols.includes('fee')) throw new Error('old data');
   built = d.built;
   const ix = Object.fromEntries(d.cols.map((c, i) => [c, i]));
   lots = d.rows.map(r => Object.fromEntries(d.cols.map(c => [c, r[ix[c]]])));
@@ -418,8 +419,14 @@ fetch('data/parking.json').then(r => r.json()).then(d => {
     p.m.on('click', () => showLot(p));
   }
   render();
+  try { sessionStorage.removeItem('bp.retried') } catch {}
   $('#loading').remove();
-}).catch(() => { $('#loading').textContent = 'データを読み込めませんでした。再読み込みしてください。' });
+}).catch(e => {
+  // 更新直後は古いデータがキャッシュに残っていることがあるので、1回だけキャッシュを無視して再読み込み
+  if (!sessionStorage.getItem('bp.retried')) { try { sessionStorage.setItem('bp.retried', '1') } catch {} location.reload(); return }
+  $('#loading').textContent = 'データを読み込めませんでした。少し待ってから再読み込みしてください。';
+  console.error(e);
+});
 }
 </script>
 </body>
