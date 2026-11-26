@@ -11,7 +11,7 @@
 <style>
 /* VOICE: 路上で片手で使う道具。短く、数字が主役。
    IDEA: 料金を書いた「値札ピン」が地図に刺さっている。
-   PICTURE: 地図そのもの。ピン＝1日上限料金。
+   PICTURE: 地図そのもの。ピン＝1時間の料金と1日の最大料金（今日の曜日区分）。
    COLOUR and TYPE: 墨色のバー、料金帯4色（緑・青・橙・赤）＋灰。Noto Sans JP。
    LAYOUT: 全画面地図、上に検索、下にフィルタ帯と詳細シート。 */
 :root{--ink:#14171c;--bar:#14171c;--bar-ink:#f4f6f8;--bg:#fff;--line:#e3e6ea;--mut:#5d6570;
@@ -40,7 +40,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .legend i{display:inline-block;width:10px;height:10px;border-radius:3px}
 .pin{transform:translate(-50%,-100%);display:inline-block;padding:2px 6px;border-radius:7px;color:#fff;font:700 12px/1.3 system-ui,sans-serif;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 1px 4px #0006;position:relative}
 .pin:after{content:"";position:absolute;left:50%;bottom:-6px;margin-left:-5px;border:5px solid transparent;border-top-color:inherit;border-bottom:0}
-.pin.r{border-style:dashed}
+.pin small{font-weight:600;opacity:.9;font-size:11px}
+.pin.x{background:#fff;color:var(--t0);border-color:var(--t0)}
 .pin.fav{outline:2px solid #ffd400;outline-offset:1px}
 .t1{background:var(--t1);border-top-color:var(--t1)}.t2{background:var(--t2)}.t3{background:var(--t3)}.t4{background:var(--t4)}.t0{background:var(--t0)}
 .t1:after{border-top-color:var(--t1)}.t2:after{border-top-color:var(--t2)}.t3:after{border-top-color:var(--t3)}.t4:after{border-top-color:var(--t4)}.t0:after{border-top-color:var(--t0)}
@@ -66,7 +67,16 @@ button{font:inherit;color:inherit;cursor:pointer}
 .btn.pri{background:var(--bar);color:#fff;border-color:var(--bar)}
 .btn.ok{border-color:var(--t1);color:var(--t1)}.btn.ng{border-color:var(--t4);color:var(--t4)}
 .tag{display:inline-block;font-size:12px;border-radius:6px;padding:1px 7px;background:#eef1f4;margin-right:4px}
-.tag.r{background:#fff3d6}
+.tag.w{background:#fff3d6}
+.days{width:100%;border-collapse:collapse;margin:6px 0 10px;font-size:14px;table-layout:fixed}
+.days col.k{width:5.6em}
+.days th,.days td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.days th{font-weight:600;white-space:nowrap}
+.days td.n{white-space:nowrap;font-weight:700;font-size:16px}
+.days tr.now{background:#f2f9e6}
+.days tr.now th:after{content:"今日";margin-left:6px;font-size:11px;background:var(--acc);color:#14171c;border-radius:5px;padding:0 5px}
+.days small{display:block;color:var(--mut);font-weight:400;font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.warn{font-size:13px;background:#fff6e5;border-radius:8px;padding:6px 10px;margin:0 0 10px}
 .note{font-size:12px;color:var(--mut);margin:8px 0 0}
 .hist{font-size:13px;margin:4px 0 0;padding-left:18px}
 .list button{display:flex;width:100%;gap:10px;align-items:center;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 2px;min-height:52px}
@@ -96,20 +106,22 @@ a{color:var(--t2)}
   <button class="iconbtn" id="locBtn" aria-label="現在地"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
 </div>
 
-<div class="legend" aria-label="凡例：1日上限料金">
+<div class="legend" aria-label="凡例：1日最大料金">
+  <span style="grid-column:1/3;font-weight:600">ピン：1時間／1日最大</span>
   <i style="background:var(--t1)"></i><span>〜500円</span>
   <i style="background:var(--t2)"></i><span>〜1,000円</span>
   <i style="background:var(--t3)"></i><span>〜2,000円</span>
-  <i style="background:var(--t4)"></i><span>2,000円超</span>
-  <i style="background:var(--t0)"></i><span>上限不明</span>
+  <i style="background:var(--t4)"></i><span>2,000円超・上限なし</span>
+  <i style="background:var(--t0)"></i><span>不明</span>
 </div>
 
 <div class="chips" id="chips">
-  <button class="chip" data-max="500" aria-pressed="false">上限<b>〜500円</b></button>
-  <button class="chip" data-max="1000" aria-pressed="false">上限<b>〜1,000円</b></button>
-  <button class="chip" data-max="2000" aria-pressed="false">上限<b>〜2,000円</b></button>
-  <button class="chip" id="cTime" aria-pressed="true">時間貸</button>
-  <button class="chip" id="cRes" aria-pressed="true">予約制</button>
+  <button class="chip" id="cDay" aria-pressed="true" aria-label="料金の曜日区分を切り替え"></button>
+  <button class="chip" data-hour="100" aria-pressed="false">1時間<b>〜100円</b></button>
+  <button class="chip" data-hour="200" aria-pressed="false">1時間<b>〜200円</b></button>
+  <button class="chip" data-max="500" aria-pressed="false">1日最大<b>〜500円</b></button>
+  <button class="chip" data-max="1000" aria-pressed="false">1日最大<b>〜1,000円</b></button>
+  <button class="chip" data-max="2000" aria-pressed="false">1日最大<b>〜2,000円</b></button>
   <button class="chip" id="cUnk" aria-pressed="true">料金不明も表示</button>
   <button class="chip" id="cFav" aria-pressed="false">★お気に入り</button>
 </div>
@@ -134,7 +146,37 @@ const store = {
 };
 let favs = new Set(store.get('bp.favs', []));
 let reports = store.get('bp.reports', {});   // id -> [{t:ms, s:'ok'|'full'}]
-const f = Object.assign({max: 0, time: true, res: true, unk: true, fav: false}, store.get('bp.filter', {}));
+const f = Object.assign({max: 0, hour: 0, unk: true, fav: false}, store.get('bp.filter', {}));
+delete f.time; delete f.res;
+
+/* 祝日判定（内閣府の祝日法ルール：固定日・ハッピーマンデー・春分/秋分・振替休日・国民の休日） */
+function holidaysOf(y) {
+  const H = new Set(), k = (m, d) => `${m}-${d}`;
+  const nthMon = (m, n) => { const w = new Date(y, m - 1, 1).getDay(); return 1 + ((8 - w) % 7) + (n - 1) * 7 };
+  [[1, 1], [2, 11], [2, 23], [4, 29], [5, 3], [5, 4], [5, 5], [8, 11], [11, 3], [11, 23]].forEach(([m, d]) => H.add(k(m, d)));
+  H.add(k(1, nthMon(1, 2))); H.add(k(7, nthMon(7, 3))); H.add(k(9, nthMon(9, 3))); H.add(k(10, nthMon(10, 2)));
+  const t = y - 1980;
+  H.add(k(3, Math.floor(20.8431 + 0.242194 * t - Math.floor(t / 4))));
+  H.add(k(9, Math.floor(23.2488 + 0.242194 * t - Math.floor(t / 4))));
+  const is = dt => dt.getFullYear() === y && H.has(k(dt.getMonth() + 1, dt.getDate()));
+  for (const key of [...H]) {                       // 振替休日
+    const [m, d] = key.split('-').map(Number), dt = new Date(y, m - 1, d);
+    if (dt.getDay() === 0) { const n = new Date(dt); do n.setDate(n.getDate() + 1); while (is(n)); H.add(k(n.getMonth() + 1, n.getDate())) }
+  }
+  for (let m = 1; m <= 12; m++) for (let d = 1; d <= 31; d++) {   // 国民の休日（祝日に挟まれた平日）
+    const dt = new Date(y, m - 1, d); if (dt.getMonth() !== m - 1 || dt.getDay() === 0) continue;
+    const a = new Date(dt), b = new Date(dt); a.setDate(d - 1); b.setDate(d + 1);
+    if (!is(dt) && is(a) && is(b)) H.add(k(m, d));
+  }
+  return H;
+}
+function dayType(dt = new Date()) {
+  if (holidaysOf(dt.getFullYear()).has(`${dt.getMonth() + 1}-${dt.getDate()}`) || dt.getDay() === 0) return 'hol';
+  return dt.getDay() === 6 ? 'sat' : 'wd';
+}
+const DAYS = {wd: '平日', sat: '土曜', hol: '日曜・祝日'};
+const today = dayType();
+let day = today;   // 表示中の曜日区分
 
 const map = L.map('map', {zoomControl: false, preferCanvas: true}).setView(store.get('bp.view', [35.681, 139.767]), store.get('bp.zoom', 13));
 L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
@@ -148,35 +190,45 @@ map.addLayer(cluster);
 
 let lots = [], built = '', meMarker = null;
 
+const fee = (p, d = day) => p.fee[d] || p.fee.wd;
 function tier(p) {
-  if (p.max == null) return 0;
-  return p.max <= 500 ? 1 : p.max <= 1000 ? 2 : p.max <= 2000 ? 3 : 4;
+  const x = fee(p);
+  if (x.x) return 0;
+  if (x.m == null) return x.nc ? 4 : 0;
+  return x.m <= 500 ? 1 : x.m <= 1000 ? 2 : x.m <= 2000 ? 3 : 4;
 }
+const sy = n => '¥' + n.toLocaleString('ja-JP');
 function label(p) {
-  if (p.max != null) return p.max === 0 ? '無料' : '¥' + p.max.toLocaleString('ja-JP');
-  if (p.hour != null) return '¥' + p.hour + '/h';
-  return '?';
+  const x = fee(p);
+  if (x.x) return '休';
+  if (x.h === 0 && x.m === 0) return '無料';
+  const h = x.h != null ? (x.h === 0 ? '1h無料' : sy(x.h) + '<small>/h</small>') : '';
+  const m = x.m != null ? sy(x.m) + (h ? '<small>/日</small>' : '') : (x.nc && h ? '<small>上限なし</small>' : '');
+  return h && m ? `${h} ${m}` : h || m || '?';
 }
 function icon(p) {
-  const cls = `pin t${tier(p)}${p.kind === 'reserve' ? ' r' : ''}${favs.has(p.id) ? ' fav' : ''}`;
-  return L.divIcon({html: `<span class="${cls}">${esc(label(p))}</span>`, className: '', iconSize: [0, 0]});
+  const x = fee(p);
+  const cls = `pin t${tier(p)}${x.x ? ' x' : ''}${favs.has(p.id) ? ' fav' : ''}`;
+  return L.divIcon({html: `<span class="${cls}">${label(p)}</span>`, className: '', iconSize: [0, 0]});
 }
 function pass(p) {
+  const x = fee(p);
   if (f.fav && !favs.has(p.id)) return false;
-  if (p.kind === 'reserve' ? !f.res : !f.time) return false;
-  if (f.max) {
-    if (p.max == null) return false;
-    if (p.max > f.max) return false;
-  } else if (p.max == null && p.hour == null && !f.unk) return false;
+  if (f.max || f.hour) {
+    if (x.x) return false;
+    if (f.max && (x.m == null || x.m > f.max)) return false;
+    if (f.hour && (x.h == null || x.h > f.hour)) return false;
+  } else if (x.m == null && x.h == null && !x.x && !f.unk) return false;
   return true;
 }
 function render() {
   cluster.clearLayers();
   cluster.addLayers(lots.filter(pass).map(p => p.m));
   for (const b of document.querySelectorAll('.chip[data-max]')) b.setAttribute('aria-pressed', String(+b.dataset.max === f.max));
-  $('#cTime').setAttribute('aria-pressed', f.time); $('#cRes').setAttribute('aria-pressed', f.res);
+  for (const b of document.querySelectorAll('.chip[data-hour]')) b.setAttribute('aria-pressed', String(+b.dataset.hour === f.hour));
   $('#cUnk').setAttribute('aria-pressed', f.unk); $('#cFav').setAttribute('aria-pressed', f.fav);
-  $('#cUnk').style.display = f.max ? 'none' : '';
+  $('#cUnk').style.display = f.max || f.hour ? 'none' : '';
+  $('#cDay').innerHTML = `<b>${DAYS[day]}</b>の料金${day === today ? '（今日）' : ''} ⇄`;
   store.set('bp.filter', f);
 }
 
@@ -201,14 +253,34 @@ function toast(t) { const el = $('#toast'); el.textContent = t; el.style.display
 function availLinks(p) {
   const q = encodeURIComponent(p.name);
   const out = [];
-  if (p.kind === 'reserve') {
-    out.push(`<a class="btn pri" href="${esc(p.url)}" target="_blank" rel="noopener">予約・空き確認（${esc(p.op)}）</a>`);
-  } else {
-    out.push(`<a class="btn" href="https://www.s-park.jp/list/bike?q=${q}" target="_blank" rel="noopener">s-parkで探す</a>`);
-    if (/オートバイ|公社|TOKYO PUBLIC/.test(p.name + p.op))
-      out.push(`<a class="btn" href="https://www.tmpc.or.jp/04_parking/public/pb_livecamera.html" target="_blank" rel="noopener">公社ライブカメラ</a>`);
-  }
+  out.push(`<a class="btn" href="https://www.s-park.jp/list/bike?q=${q}" target="_blank" rel="noopener">s-parkで探す</a>`);
+  if (/オートバイ|公社|TOKYO PUBLIC/.test(p.name + p.op))
+    out.push(`<a class="btn" href="https://www.tmpc.or.jp/04_parking/public/pb_livecamera.html" target="_blank" rel="noopener">公社ライブカメラ</a>`);
   return out.join('');
+}
+
+function feeCell(x, p) {
+  if (!x || x.x) return `<td class="n" colspan="2">定休日<small>掲載元の定休日：${esc(p.holiday)}${/24/.test(p.hours) ? '。ただし利用可能時間は「' + esc(p.hours) + '」とも掲載されているため、一時利用できるかは現地で確認を' : ''}</small></td>`;
+  const h = x.h == null ? '—' : x.h === 0 ? '無料' : yen(x.h);
+  const m = x.m == null ? (x.nc ? '上限なし' : '—') : yen(x.m);
+  return `<td class="n">${h}${x.u ? `<small>${esc(x.u)}</small>` : ''}</td><td class="n">${m}${x.n ? `<small>${esc(x.n)}</small>` : ''}</td>`;
+}
+function feeTable(p) {
+  const F = p.fee, rows = [];
+  const same = !F.sat && !F.hol && !F.hn;
+  if (same) rows.push(['全日', 'all']);
+  else for (const k of ['wd', 'sat', 'hol']) rows.push([DAYS[k] + (k === 'wd' ? '<small>月〜金</small>' : ''), k]);
+  const cap = same
+    ? (F.d === 'all' ? '全日同じ料金（掲載情報に「全日」「オールタイム」と明記）'
+                     : '曜日・祝日による違いの記載なし（毎日同じ料金とみなしています）')
+    : F.sat || F.hol ? '曜日・祝日で料金や定休日が違います' : '料金は毎日同じですが、曜日で利用できる時間が違います';
+  const yrs = p.upd && (m => m ? (Date.now() - new Date(+m[1], +m[2] - 1, +m[3])) / 3.156e10 : 0)(p.upd.match(/(\d{4})年(\d+)月(\d+)日/));
+  return `<table class="days"><colgroup><col class="k"><col><col></colgroup><thead><tr><th></th><th>1時間<small>停めた料金</small></th><th>1日最大<small>24時間の目安</small></th></tr></thead><tbody>
+    ${rows.map(([t, k]) => `<tr class="${k === 'all' || k === today ? 'now' : ''}"><th>${t}</th>${feeCell(k === 'all' ? F.wd : F[k] || F.wd, p)}</tr>`).join('')}
+    </tbody></table>
+    ${F.hn ? `<p class="warn">曜日で利用できる時間が違います：${esc(p.hours)}</p>` : ''}
+    <p class="note" style="margin:-4px 0 10px">${cap}${F.c ? '。車種（排気量）で料金が違うため、高い方（自動二輪）を表示' : ''}</p>
+    ${yrs > 3 ? `<p class="warn">掲載元の料金情報は${Math.floor(yrs)}年以上前（${esc(p.upd)}）のものです。改定されている可能性があります。</p>` : ''}`;
 }
 
 function showLot(p) {
@@ -218,13 +290,11 @@ function showLot(p) {
                                 : `<a href="${esc(p.url)}" target="_blank" rel="noopener">OpenStreetMapの登録情報</a>（料金はJMPSA未掲載のため不明）`;
   openSheet(`
     <h2 id="sTitle">${esc(p.name)}</h2>
-    <p class="sub">${p.kind === 'reserve' ? `<span class="tag r">予約制・${esc(p.op)}</span>` : '<span class="tag">時間貸</span>'}${esc(p.addr)}</p>
-    <div class="big">
-      <div><small>1日の上限</small><strong>${yen(p.max)}</strong></div>
-      <div><small>1時間あたり</small><strong>${yen(p.hour)}</strong></div>
-    </div>
+    <p class="sub">${esc(p.addr)}</p>
+    ${feeTable(p)}
     ${p.price ? `<p class="raw">${esc(p.price)}</p>` : ''}
-    ${p.holiday ? `<p class="sub">定休日・営業：${esc(p.holiday)}</p>` : ''}
+    ${p.hours ? `<p class="sub">利用可能時間：${esc(p.hours)}</p>` : ''}
+    ${p.holiday && !/^(-|なし)$/.test(p.holiday) ? `<p class="sub">定休日：${esc(p.holiday)}</p>` : ''}
     <div class="row">
       <a class="btn pri" href="${nav}" target="_blank" rel="noopener">ここへナビ</a>
       <button class="btn" id="favBtn">${favs.has(p.id) ? '★ お気に入り済み' : '☆ お気に入り'}</button>
@@ -235,7 +305,7 @@ function showLot(p) {
       <button class="btn ng" data-rep="full">満車だった</button>
     </div>
     ${rs.length ? `<ul class="hist">${rs.map(r => `<li>${r.s === 'ok' ? '空き' : '満車'}：${when(r.t)}（${ago(r.t)}）</li>`).join('')}</ul>` : '<p class="note">行ってみた結果を記録すると、曜日・時間帯ごとの混み具合が自分用にたまっていきます。</p>'}
-    <p class="note">料金は${esc(built)}時点の掲載情報から自動で読み取った目安です。正確な料金・台数は${src}で確認してください。</p>
+    <p class="note">料金は${esc(built)}時点の掲載情報${p.upd ? `（掲載元の最終更新 ${esc(p.upd)}）` : ''}から読み取った目安です。正確な料金・台数は${src}で確認してください。</p>
   `);
   $('#favBtn').onclick = () => {
     favs.has(p.id) ? favs.delete(p.id) : favs.add(p.id);
@@ -252,10 +322,10 @@ function showNear() {
   const c = map.getCenter();
   const near = lots.filter(pass).map(p => [dist(c, p), p]).sort((a, b) => a[0] - b[0]).slice(0, 30);
   if (!near.length) { openSheet('<h2 id="sTitle">この周辺</h2><p>条件に合う駐輪場がありません。フィルタをゆるめてください。</p>'); return }
-  openSheet(`<h2 id="sTitle">地図の中心から近い順</h2><p class="sub">今のフィルタ条件で${near.length}件</p>
+  openSheet(`<h2 id="sTitle">地図の中心から近い順</h2><p class="sub">今のフィルタ条件で${near.length}件・${DAYS[day]}の料金</p>
     <div class="list">${near.map(([d, p], i) => `<button data-i="${i}">
-      <span class="p"><span class="pin t${tier(p)}" style="transform:none">${esc(label(p))}</span></span>
-      <span class="n">${esc(p.name)}<small>${p.kind === 'reserve' ? '予約制・' + esc(p.op) : '時間貸'}${p.hour != null ? ' ・ 1時間' + yen(p.hour) : ''}</small></span>
+      <span class="p"><span class="pin t${tier(p)}" style="transform:none">${label(p)}</span></span>
+      <span class="n">${esc(p.name)}<small>${(x => x.x ? DAYS[day] + 'は定休日（掲載）' : `1時間 ${x.h == null ? '—' : yen(x.h)} ・ 1日最大 ${x.m == null ? (x.nc ? '上限なし' : '—') : yen(x.m)}`)(fee(p))}</small></span>
       <span class="d">${fmtD(d)}</span></button>`).join('')}</div>`);
   for (const b of document.querySelectorAll('.list button')) b.onclick = () => {
     const p = near[+b.dataset.i][1]; map.setView([p.lat, p.lng], Math.max(map.getZoom(), 17)); showLot(p);
@@ -263,11 +333,13 @@ function showNear() {
 }
 
 function showInfo() {
-  const n = lots.length, nj = lots.filter(p => p.src === 'jmpsa').length, nm = lots.filter(p => p.max != null).length;
+  const n = lots.length, nj = lots.filter(p => p.src === 'jmpsa').length;
+  const nh = lots.filter(p => p.fee.wd.h != null).length, nd = lots.filter(p => p.fee.sat || p.fee.hol || p.fee.hn).length;
   openSheet(`<h2 id="sTitle">このアプリについて</h2>
-    <p>東京都内のバイク（自動二輪）駐車場 ${n.toLocaleString()}件を表示しています。ピンの数字は<b>1日の上限料金</b>（無い場合は1時間料金）。点線のピンは予約制（akippa・特P など）です。</p>
-    <p><b>空き状況について：</b>都内のバイク駐車場のリアルタイム満空はオープンデータとして公開されていないため、地図上には出せません。代わりに、予約制は予約サイトで空き確認・事前確保ができ、時間貸は s-park や公社のライブカメラへすぐ飛べるようにしています。「空いてた／満車だった」の記録はこの端末に保存されます。</p>
-    <p class="note">データ：<a href="https://www.jmpsa.or.jp/society/parking/area13/" target="_blank" rel="noopener">日本二輪車普及安全協会「全国バイク駐車場案内」</a>（${nj.toLocaleString()}件、うち上限料金を読み取れたもの ${nm.toLocaleString()}件）、© OpenStreetMap contributors（ODbL）。取得日 ${esc(built)}。料金は自動読み取りのため誤りがありえます。</p>`);
+    <p>東京都内の時間貸しバイク（自動二輪）駐車場 ${n.toLocaleString()}件を表示しています（予約制は除外）。ピンは<b>1時間停めた料金</b>と<b>1日の最大料金</b>（24時間停めた場合の目安）です。</p>
+    <p><b>平日・土曜・日祝：</b>今日が平日か土曜か日曜・祝日か（振替休日・国民の休日を含む）を自動で判定し、その日の料金を表示します。下のチップで他の曜日区分に切り替えられます。曜日で料金や定休日が違うと掲載されているのは${nd}件で、ほかは掲載情報に曜日の区別がない（＝毎日同じ料金とみなしている）ものです。</p>
+    <p><b>空き状況について：</b>都内のバイク駐車場のリアルタイム満空はオープンデータとして公開されていないため、地図上には出せません。s-park や公社のライブカメラへすぐ飛べるようにしています。「空いてた／満車だった」の記録はこの端末に保存されます。</p>
+    <p class="note">データ：<a href="https://www.jmpsa.or.jp/society/parking/area13/" target="_blank" rel="noopener">日本二輪車普及安全協会「全国バイク駐車場案内」</a>（${nj.toLocaleString()}件、うち1時間料金を読み取れたもの ${nh.toLocaleString()}件）、© OpenStreetMap contributors（ODbL）。取得日 ${esc(built)}。料金は掲載文から読み取った目安で、掲載元の情報が古い場合もあります。</p>`);
 }
 
 /* 検索：国土地理院 住所検索API */
@@ -311,8 +383,12 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet()
 $('#chips').addEventListener('click', e => {
   const b = e.target.closest('.chip'); if (!b) return;
   if (b.dataset.max) f.max = f.max === +b.dataset.max ? 0 : +b.dataset.max;
-  else if (b.id === 'cTime') f.time = !f.time;
-  else if (b.id === 'cRes') f.res = !f.res;
+  else if (b.dataset.hour) f.hour = f.hour === +b.dataset.hour ? 0 : +b.dataset.hour;
+  else if (b.id === 'cDay') {
+    day = {wd: 'sat', sat: 'hol', hol: 'wd'}[day];
+    for (const p of lots) p.m.setIcon(icon(p));
+    toast(DAYS[day] + 'の料金を表示中' + (day === today ? '（今日）' : ''));
+  }
   else if (b.id === 'cUnk') f.unk = !f.unk;
   else if (b.id === 'cFav') f.fav = !f.fav;
   render();
