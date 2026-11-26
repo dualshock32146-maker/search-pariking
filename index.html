@@ -181,7 +181,7 @@ const today = dayType();
 let day = today;   // 表示中の曜日区分
 
 const map = L.map('map', {zoomControl: false, preferCanvas: true}).setView(store.get('bp.view', [35.681, 139.767]), store.get('bp.zoom', 13));
-const ATTR_DATA = 'データ © JMPSA, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const ATTR_DATA = 'データ © JMPSA, 中央区・目黒区・品川区（CC BY）, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const bases = {
   '標準': L.tileLayer('https://tile.openstreetmap.jp/styles/osm-bright-ja/{z}/{x}/{y}{r}.png', {
     maxZoom: 19, minZoom: 9, detectRetina: false,
@@ -301,12 +301,17 @@ function feeTable(p) {
 function showLot(p) {
   const rs = (reports[p.id] || []).slice(-5).reverse();
   const nav = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`;
-  const src = p.src === 'jmpsa' ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">JMPSAの詳細ページ</a>（収容台数・車両制限・営業時間）`
-                                : `<a href="${esc(p.url)}" target="_blank" rel="noopener">OpenStreetMapの登録情報</a>（料金はJMPSA未掲載のため不明）`;
+  const A = p.alt || {};
+  const src = A.sn ? `<a href="${esc(A.su)}" target="_blank" rel="noopener">${esc(A.sn)}</a>（CC BY 4.0、${esc(A.sd)}取得）`
+            : p.src === 'jmpsa' ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">JMPSAの詳細ページ</a>（収容台数・車両制限・営業時間）`
+            : `<a href="${esc(p.url)}" target="_blank" rel="noopener">OpenStreetMapの登録情報</a>（料金はJMPSA未掲載のため不明）`;
+  const odInfo = A.sn ? `<p class="sub"><span class="tag w">区のオープンデータの料金</span>${A.note ? esc(A.note) : ''}</p>
+    ${A.jp != null ? `<p class="note" style="margin:-4px 0 10px">JMPSAの掲載（${esc(A.ju || '更新日不明')}）では「${esc(A.jp)}」。区のデータの方が新しいため、こちらを表示しています。${p.src === 'jmpsa' ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">JMPSAの詳細ページ</a>` : ''}</p>` : ''}` : '';
   openSheet(`
     <h2 id="sTitle">${esc(p.name)}</h2>
     <p class="sub">${esc(p.addr)}</p>
     ${feeTable(p)}
+    ${odInfo}
     ${p.price ? `<p class="raw">${esc(p.price)}</p>` : ''}
     ${p.hours ? `<p class="sub">利用可能時間：${esc(p.hours)}</p>` : ''}
     ${p.holiday && !/^(-|なし)$/.test(p.holiday) ? `<p class="sub">定休日：${esc(p.holiday)}</p>` : ''}
@@ -354,7 +359,7 @@ function showInfo() {
     <p>東京都内の時間貸しバイク（自動二輪）駐車場 ${n.toLocaleString()}件を表示しています（予約制は除外）。ピンは<b>1時間停めた料金</b>と<b>1日の最大料金</b>（24時間停めた場合の目安）です。</p>
     <p><b>平日・土曜・日祝：</b>今日が平日か土曜か日曜・祝日か（振替休日・国民の休日を含む）を自動で判定し、その日の料金を表示します。下のチップで他の曜日区分に切り替えられます。曜日で料金や定休日が違うと掲載されているのは${nd}件で、ほかは掲載情報に曜日の区別がない（＝毎日同じ料金とみなしている）ものです。</p>
     <p><b>空き状況について：</b>都内のバイク駐車場のリアルタイム満空はオープンデータとして公開されていないため、地図上には出せません。s-park や公社のライブカメラへすぐ飛べるようにしています。「空いてた／満車だった」の記録はこの端末に保存されます。</p>
-    <p class="note">データ：<a href="https://www.jmpsa.or.jp/society/parking/area13/" target="_blank" rel="noopener">日本二輪車普及安全協会「全国バイク駐車場案内」</a>（${nj.toLocaleString()}件、うち1時間料金を読み取れたもの ${nh.toLocaleString()}件）、© OpenStreetMap contributors（ODbL）。取得日 ${esc(built)}。料金は掲載文から読み取った目安で、掲載元の情報が古い場合もあります。</p>`);
+    <p class="note">データ：<a href="https://www.jmpsa.or.jp/society/parking/area13/" target="_blank" rel="noopener">日本二輪車普及安全協会「全国バイク駐車場案内」</a>（${nj.toLocaleString()}件、うち1時間料金を読み取れたもの ${nh.toLocaleString()}件）、中央区・目黒区・品川区のオープンデータ（CC BY 4.0。JMPSAと同じ駐車場は区のデータを優先）、© OpenStreetMap contributors（ODbL）。取得日 ${esc(built)}。料金は掲載文から読み取った目安で、掲載元の情報が古い場合もあります。</p>`);
 }
 
 /* 検索：国土地理院 住所検索API */

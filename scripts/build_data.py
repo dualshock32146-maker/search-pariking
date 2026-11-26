@@ -13,7 +13,29 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from price import parse_fee  # noqa: E402
 
 COLS = ["id", "name", "addr", "lat", "lng", "price", "holiday", "src", "op", "url",
-        "hours", "upd", "fee"]
+        "hours", "upd", "fee", "alt"]
+
+GENERIC = re.compile(r"駐輪場|駐車場|自転車等?|二輪車|自動二輪|バイク|オートバイ|区営|区立|目黒区|中央区|品川区|"
+                     r"地下|駅|東急|JR|ＪＲ|エコステーション21|パーキング|[（）()\s　・]|No\.\d+")
+
+
+def lcs(a, b):
+    """共通部分文字列の最大長"""
+    best = 0
+    for i in range(len(a)):
+        for j in range(i + best + 1, len(a) + 1):
+            if a[i:j] in b:
+                best = j - i
+            else:
+                break
+    return best
+
+
+def same_place(od, r):
+    a, b = GENERIC.sub("", od["name"]), GENERIC.sub("", r["name"])
+    d = dist_m((od["lat"], od["lng"]), (r["lat"], r["lng"]))
+    # 名前の大部分が一致し（「武蔵小山西口」と「武蔵小山ビルA」は別扱い）、近くにある
+    return d <= 400 and min(len(a), len(b)) >= 3 and lcs(a, b) / max(len(a), len(b)) >= 0.75
 
 RESERVE = re.compile(r"^【予約制(?:：([^】]+))?】")
 
@@ -46,8 +68,13 @@ def load_prev(path):
     rows = []
     for r in d["rows"]:
         g = lambda k: r[ix[k]] if k in ix else ""
-        if g("kind") == "reserve":
-            continue
+        if g("kind") == "reserve" or g("src") == "od":
+            continue  # 区データの行は毎回 out/opendata.json から作り直す
+        alt = g("alt") or {}
+        if alt.get("jp") is not None:  # 区データで上書きしていたJMPSAの行は元に戻す
+            r = list(r)
+            for k, v in (("price", alt["jp"]), ("name", alt["jn"]), ("hours", alt["jh"]), ("upd", alt["ju"])):
+                r[ix[k]] = v
         rows.append({"id": g("id"), "name": g("name"), "addr": g("addr"), "lat": g("lat"), "lng": g("lng"),
                      "price": g("price"), "holiday": g("holiday"), "src": g("src"), "op": g("op") or "",
                      "url": g("url"), "hours": g("hours") or "", "upd": g("upd") or ""})
@@ -60,6 +87,7 @@ def main():
     ap.add_argument("--prev", help="既存の data/parking.json から作り直す（再スクレイプしない）")
     ap.add_argument("--osm")
     ap.add_argument("--detail", help="fetch_jmpsa_detail.py の出力（利用可能時間・最終更新日）")
+    ap.add_argument("--opendata", help="fetch_opendata.py の出力（区のオープンデータ）")
     ap.add_argument("-o", "--out", default="data/parking.json")
     a = ap.parse_args()
 
@@ -121,14 +149,49 @@ def main():
                 if d.get("料金（時間貸）"):
                     r["price"] = d["料金（時間貸）"]
 
+    for r in rows:
+        r.setdefault("alt", {})
+        r.setdefault("ptext", None)
+    od_added = od_merged = 0
+    if a.opendata and os.path.exists(a.opendata):
+        # 区のオープンデータ：同じ駐車場がJMPSAにあれば区データの料金を優先（JMPSAの掲載は古いものが多い）
+        od = json.load(open(a.opendata, encoding="utf-8"))
+        for it in od["items"]:
+            alt = {"sn": it["srcname"], "su": it["srcurl"], "sd": od["fetched"]}
+            if it.get("note"):
+                alt["note"] = it["note"]
+            hits = [r for r in rows if r["src"] == "jmpsa" and not r["alt"].get("hid") and same_place(it, r)]
+            hits.sort(key=lambda r: dist_m((it["lat"], it["lng"]), (r["lat"], r["lng"])))
+            if hits:
+                r = hits[0]
+                r["alt"] = dict(alt, jp=r["price"], jn=r["name"], jh=r["hours"], ju=r["upd"])
+                r.update(price=it["price"], ptext=it.get("ptext"), hours=it["hours"] or r["hours"], upd="")
+                if it.get("all_days"):
+                    r["alldays"] = True
+                for dup in hits[1:]:
+                    if dist_m((dup["lat"], dup["lng"]), (r["lat"], r["lng"])) < 60:
+                        dup["alt"] = {"hid": 1, "by": r["id"]}  # JMPSA内の重複
+                od_merged += 1
+            else:
+                rows.append({"id": "d" + it["key"], "name": it["name"], "addr": it["addr"], "lat": it["lat"],
+                             "lng": it["lng"], "price": it["price"], "ptext": it.get("ptext"),
+                             "holiday": it["holiday"], "src": "od", "op": "", "url": it["srcurl"],
+                             "hours": it["hours"], "upd": "", "alt": alt, "alldays": it.get("all_days")})
+                od_added += 1
+
     out_rows = []
-    rows = [r for r in rows if not (r["src"] == "jmpsa" and re.fullmatch(r"\s*(-|なし)?\s*", r["price"] or ""))]
+    rows = [r for r in rows if not (r["src"] == "jmpsa" and re.fullmatch(r"\s*(-|なし)?\s*", r["price"] or ""))
+            and not r["alt"].get("hid")]
     for r in rows:
         price = r["price"]
-        if r["src"] == "osm":
+        if r.get("ptext"):
+            f = parse_fee(r["ptext"], r["holiday"])
+        elif r["src"] == "osm":
             f = parse_fee("無料" if price.startswith("無料") else price.split(" ", 1)[1] if " " in price else "")
         else:
             f = parse_fee(price, r["holiday"])
+        if r.get("alldays") and f["days"] == "":
+            f["days"] = "all"
         r["fee"] = compact_fee(f)
         # 利用可能時間が曜日で違う（管理人の勤務時間の話は除く）
         hz = re.sub(r"[（(]?管理[人員][^）)]*[）)]?|管理[人員].*$", "", r["hours"] or "")
@@ -143,6 +206,7 @@ def main():
     hp = sum(1 for r in rows if r["fee"]["wd"].get("h") is not None)
     mp = sum(1 for r in rows if r["fee"]["wd"].get("m") is not None)
     diff = sum(1 for r in rows if "sat" in r["fee"] or "hol" in r["fee"] or "hn" in r["fee"])
+    print(f"opendata: merged {od_merged}, added {od_added}")
     print(f"{len(rows)} lots (osm added {added}), 1h price {hp}, 24h price {mp}, weekday/holiday differ {diff}")
 
 

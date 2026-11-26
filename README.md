@@ -29,16 +29,19 @@ s-park は利用規約でデータの複製・二次利用を禁じているた�
 python3 scripts/scrape_jmpsa.py counts.txt out/jmpsa.json
 # 2. OSM（Overpass API）
 curl --data-urlencode data@scripts/osm_query.overpassql https://maps.mail.ru/osm/tools/overpass/api/interpreter -o out/osm.json
+# 2.5 区のオープンデータ（中央区・目黒区・品川区）
+python3 scripts/fetch_opendata.py out/opendata.json
 # 3. 詳細ページ（利用可能時間・最終更新日）。予約制以外のみ、0.4秒間隔
 python3 scripts/fetch_jmpsa_detail.py data/parking.json out/detail.json
 # 4. 統合
-python3 scripts/build_data.py "out/jmpsa*.json" --osm out/osm.json --detail out/detail.json -o data/parking.json
+python3 scripts/build_data.py "out/jmpsa*.json" --osm out/osm.json --detail out/detail.json --opendata out/opendata.json -o data/parking.json
 # 料金の読み取りだけやり直すとき（再スクレイプなし）
-python3 scripts/build_data.py --prev data/parking.json --detail out/detail.json -o data/parking.json
+python3 scripts/build_data.py --prev data/parking.json --detail out/detail.json --opendata out/opendata.json -o data/parking.json
 ```
 
 ## データ出典
 - 一般社団法人 日本二輪車普及安全協会「全国バイク駐車場案内」 https://www.jmpsa.or.jp/society/parking/area13/
 - © OpenStreetMap contributors（ODbL）
 - 地図タイル：OpenStreetMap Japan（OSM Bright 日本語版、標準）、OpenStreetMap、国土地理院（地理院タイル）。右上のボタンで切替
+- 中央区「区営二輪車駐車場一覧」、目黒区「自転車等駐輪場一覧」、品川区「民間自転車駐輪場」（東京都オープンデータカタログ、CC BY 4.0）。JMPSAと同じ駐車場は区のデータの料金を優先
 - 地名検索：国土地理院 住所検索API

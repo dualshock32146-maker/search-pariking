@@ -25,6 +25,7 @@ def norm(t):
     z = re.sub(r"(\d+)時間半", lambda m: f"{int(m.group(1)) * 60 + 30}分", z)
     z = re.sub(r"(\d+)時間(\d+)分", lambda m: f"{int(m.group(1)) * 60 + int(m.group(2))}分", z)
     z = re.sub(r"(\d+)\s*h(?![a-zA-Z])", r"\1時間", z)
+    z = re.sub(r"円\s*/\s*時(?!間)", "円/1時間", z)
     return z
 
 
