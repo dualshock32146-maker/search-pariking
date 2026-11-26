@@ -46,6 +46,8 @@ button{font:inherit;color:inherit;cursor:pointer}
 .t1{background:var(--t1);border-top-color:var(--t1)}.t2{background:var(--t2)}.t3{background:var(--t3)}.t4{background:var(--t4)}.t0{background:var(--t0)}
 .t1:after{border-top-color:var(--t1)}.t2:after{border-top-color:var(--t2)}.t3:after{border-top-color:var(--t3)}.t4:after{border-top-color:var(--t4)}.t0:after{border-top-color:var(--t0)}
 .leaflet-div-icon{background:none;border:0}
+.leaflet-top.leaflet-right{top:calc(env(safe-area-inset-top) + 62px)}
+.leaflet-control-layers{border-radius:10px!important;font-size:14px}
 .marker-cluster div{background:var(--bar);color:#fff;font:700 13px/30px system-ui;border-radius:50%;width:30px;height:30px;margin:5px;text-align:center}
 .marker-cluster{background:#14171c44;border-radius:50%}
 .me{width:16px;height:16px;border-radius:50%;background:#1d7cf2;border:3px solid #fff;box-shadow:0 0 0 6px #1d7cf233}
@@ -179,10 +181,23 @@ const today = dayType();
 let day = today;   // 表示中の曜日区分
 
 const map = L.map('map', {zoomControl: false, preferCanvas: true}).setView(store.get('bp.view', [35.681, 139.767]), store.get('bp.zoom', 13));
-L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
-  maxZoom: 18, minZoom: 9,
-  attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a> | データ © JMPSA, © OpenStreetMap contributors'
-}).addTo(map);
+const ATTR_DATA = 'データ © JMPSA, © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+const bases = {
+  '標準': L.tileLayer('https://tile.openstreetmap.jp/styles/osm-bright-ja/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19, minZoom: 9, detectRetina: false,
+    attribution: '<a href="https://openstreetmap.jp/">OpenStreetMap Japan</a> | ' + ATTR_DATA
+  }),
+  'OSM（詳細）': L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, minZoom: 9, attribution: ATTR_DATA
+  }),
+  '地理院（淡色）': L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+    maxZoom: 18, minZoom: 9,
+    attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a> | ' + ATTR_DATA
+  })
+};
+(bases[store.get('bp.base', '標準')] || bases['標準']).addTo(map);
+L.control.layers(bases, null, {position: 'topright'}).addTo(map);
+map.on('baselayerchange', e => store.set('bp.base', e.name));
 map.on('moveend', () => { const c = map.getCenter(); store.set('bp.view', [c.lat, c.lng]); store.set('bp.zoom', map.getZoom()) });
 
 const cluster = L.markerClusterGroup({chunkedLoading: true, maxClusterRadius: z => z >= 16 ? 25 : 50, disableClusteringAtZoom: 17, showCoverageOnHover: false});

@@ -40,4 +40,5 @@ python3 scripts/build_data.py --prev data/parking.json --detail out/detail.json 
 ## データ出典
 - 一般社団法人 日本二輪車普及安全協会「全国バイク駐車場案内」 https://www.jmpsa.or.jp/society/parking/area13/
 - © OpenStreetMap contributors（ODbL）
-- 地図タイル・地名検索：国土地理院（地理院タイル、住所検索API）
+- 地図タイル：OpenStreetMap Japan（OSM Bright 日本語版、標準）、OpenStreetMap、国土地理院（地理院タイル）。右上のボタンで切替
+- 地名検索：国土地理院 住所検索API
