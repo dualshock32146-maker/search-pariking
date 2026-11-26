@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#14171c">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%228%22 fill=%22%2314171c%22/%3E%3Ctext x=%2216%22 y=%2223%22 font-size=%2220%22 font-weight=%22700%22 text-anchor=%22middle%22 fill=%22%237cc400%22 font-family=%22sans-serif%22%3EP%3C/text%3E%3C/svg%3E">
+<title>バイク駐輪場マップ 東京</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css">
+<style>
+/* VOICE: 路上で片手で使う道具。短く、数字が主役。
+   IDEA: 料金を書いた「値札ピン」が地図に刺さっている。
+   PICTURE: 地図そのもの。ピン＝1日上限料金。
+   COLOUR and TYPE: 墨色のバー、料金帯4色（緑・青・橙・赤）＋灰。Noto Sans JP。
+   LAYOUT: 全画面地図、上に検索、下にフィルタ帯と詳細シート。 */
+:root{--ink:#14171c;--bar:#14171c;--bar-ink:#f4f6f8;--bg:#fff;--line:#e3e6ea;--mut:#5d6570;
+--t1:#139a55;--t2:#2a66d0;--t3:#e07f00;--t4:#d23c33;--t0:#8a9099;--acc:#7cc400}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%;font:15px/1.5 "Noto Sans JP",system-ui,-apple-system,"Hiragino Sans",sans-serif;color:var(--ink);background:#e9ecef;overflow:hidden}
+#map{position:fixed;inset:0}
+button{font:inherit;color:inherit;cursor:pointer}
+.top{position:fixed;z-index:1000;left:0;right:0;top:0;padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;display:flex;gap:8px;pointer-events:none}
+.top>*{pointer-events:auto}
+.search{flex:1;display:flex;background:var(--bar);border-radius:12px;box-shadow:0 2px 10px #0004;overflow:hidden}
+.search input{flex:1;border:0;background:transparent;color:var(--bar-ink);font-size:16px;padding:0 14px;height:46px;outline:none}
+.search input::placeholder{color:#9aa3ad}
+.search button,.iconbtn{border:0;background:var(--bar);color:var(--bar-ink);width:46px;height:46px;border-radius:12px;display:grid;place-items:center;flex:none}
+.iconbtn{box-shadow:0 2px 10px #0004}
+.iconbtn svg,.search svg{width:22px;height:22px}
+#results{position:fixed;z-index:1001;left:10px;right:66px;top:calc(env(safe-area-inset-top) + 58px);background:#fff;border-radius:12px;box-shadow:0 4px 18px #0003;max-height:50vh;overflow:auto;display:none}
+#results button{display:block;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:12px 14px;min-height:44px}
+.chips{position:fixed;z-index:1000;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 10px);display:flex;gap:6px;overflow-x:auto;padding:0 10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:0;border-radius:999px;background:#fff;box-shadow:0 2px 8px #0003;height:40px;padding:0 14px;font-size:14px;white-space:nowrap}
+.chip[aria-pressed=true]{background:var(--bar);color:var(--bar-ink)}
+.chip b{font-weight:700}
+.fab{position:fixed;z-index:1000;right:10px;bottom:calc(env(safe-area-inset-bottom) + 60px);display:flex;flex-direction:column;gap:8px}
+.legend{position:fixed;z-index:999;left:10px;bottom:calc(env(safe-area-inset-bottom) + 60px);background:#fffe;border-radius:10px;padding:6px 10px;font-size:12px;box-shadow:0 2px 8px #0002;display:grid;grid-template-columns:auto auto;gap:2px 8px;align-items:center}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px}
+.pin{transform:translate(-50%,-100%);display:inline-block;padding:2px 6px;border-radius:7px;color:#fff;font:700 12px/1.3 system-ui,sans-serif;white-space:nowrap;border:1.5px solid #fff;box-shadow:0 1px 4px #0006;position:relative}
+.pin:after{content:"";position:absolute;left:50%;bottom:-6px;margin-left:-5px;border:5px solid transparent;border-top-color:inherit;border-bottom:0}
+.pin.r{border-style:dashed}
+.pin.fav{outline:2px solid #ffd400;outline-offset:1px}
+.t1{background:var(--t1);border-top-color:var(--t1)}.t2{background:var(--t2)}.t3{background:var(--t3)}.t4{background:var(--t4)}.t0{background:var(--t0)}
+.t1:after{border-top-color:var(--t1)}.t2:after{border-top-color:var(--t2)}.t3:after{border-top-color:var(--t3)}.t4:after{border-top-color:var(--t4)}.t0:after{border-top-color:var(--t0)}
+.leaflet-div-icon{background:none;border:0}
+.marker-cluster div{background:var(--bar);color:#fff;font:700 13px/30px system-ui;border-radius:50%;width:30px;height:30px;margin:5px;text-align:center}
+.marker-cluster{background:#14171c44;border-radius:50%}
+.me{width:16px;height:16px;border-radius:50%;background:#1d7cf2;border:3px solid #fff;box-shadow:0 0 0 6px #1d7cf233}
+.sheet{position:fixed;z-index:1100;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -6px 24px #0003;max-height:78vh;overflow:auto;transform:translateY(105%);transition:transform .22s ease;padding:8px 16px calc(env(safe-area-inset-bottom) + 16px)}
+.sheet.open{transform:none}
+@media (prefers-reduced-motion:reduce){.sheet{transition:none}}
+@media (min-width:760px){.sheet{left:auto;right:12px;bottom:12px;width:400px;border-radius:18px;max-height:calc(100vh - 90px)}}
+.grab{width:40px;height:5px;border-radius:3px;background:#d0d4d9;margin:0 auto 8px}
+.sheet h2{font-size:19px;line-height:1.3;margin:4px 40px 2px 0}
+.close{position:absolute;right:8px;top:8px;width:44px;height:44px;border:0;background:none;font-size:22px}
+.sub{color:var(--mut);font-size:13px;margin:0 0 10px}
+.big{display:flex;gap:10px;margin:8px 0 12px}
+.big div{flex:1;border-radius:12px;background:#f3f5f7;padding:8px 12px}
+.big small{display:block;color:var(--mut);font-size:12px}
+.big strong{font-size:22px;white-space:nowrap}
+.raw{white-space:pre-line;font-size:14px;background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:0 0 10px}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.btn{flex:1 1 140px;min-height:44px;border-radius:10px;border:1px solid var(--line);background:#fff;display:flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;color:var(--ink);font-weight:600;font-size:14px;padding:0 10px;text-align:center}
+.btn.pri{background:var(--bar);color:#fff;border-color:var(--bar)}
+.btn.ok{border-color:var(--t1);color:var(--t1)}.btn.ng{border-color:var(--t4);color:var(--t4)}
+.tag{display:inline-block;font-size:12px;border-radius:6px;padding:1px 7px;background:#eef1f4;margin-right:4px}
+.tag.r{background:#fff3d6}
+.note{font-size:12px;color:var(--mut);margin:8px 0 0}
+.hist{font-size:13px;margin:4px 0 0;padding-left:18px}
+.list button{display:flex;width:100%;gap:10px;align-items:center;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:10px 2px;min-height:52px}
+.list .p{flex:none;min-width:58px;text-align:center}
+.list .n{flex:1}.list .n small{display:block;color:var(--mut)}
+.list .d{flex:none;color:var(--mut);font-size:13px;white-space:nowrap}
+.toast{position:fixed;z-index:1200;left:50%;top:calc(env(safe-area-inset-top) + 64px);transform:translateX(-50%);background:var(--bar);color:#fff;border-radius:10px;padding:8px 14px;font-size:14px;display:none;max-width:90vw}
+.loading{position:fixed;inset:0;z-index:2000;display:grid;place-items:center;background:#14171c;color:#fff;font-size:15px}
+a{color:var(--t2)}
+</style>
+</head>
+<body>
+<div id="map" aria-label="地図"></div>
+<div class="loading" id="loading">駐輪場データを読み込み中…</div>
+
+<div class="top">
+  <form class="search" id="sform" role="search">
+    <input id="q" type="search" placeholder="駅名・地名で探す（例: 渋谷駅）" autocomplete="off" enterkeyhint="search">
+    <button type="submit" aria-label="検索"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg></button>
+  </form>
+  <button class="iconbtn" id="infoBtn" aria-label="このアプリについて"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg></button>
+</div>
+<div id="results" role="listbox"></div>
+
+<div class="fab">
+  <button class="iconbtn" id="nearBtn" aria-label="この周辺の一覧"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+  <button class="iconbtn" id="locBtn" aria-label="現在地"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button>
+</div>
+
+<div class="legend" aria-label="凡例：1日上限料金">
+  <i style="background:var(--t1)"></i><span>〜500円</span>
+  <i style="background:var(--t2)"></i><span>〜1,000円</span>
+  <i style="background:var(--t3)"></i><span>〜2,000円</span>
+  <i style="background:var(--t4)"></i><span>2,000円超</span>
+  <i style="background:var(--t0)"></i><span>上限不明</span>
+</div>
+
+<div class="chips" id="chips">
+  <button class="chip" data-max="500" aria-pressed="false">上限<b>〜500円</b></button>
+  <button class="chip" data-max="1000" aria-pressed="false">上限<b>〜1,000円</b></button>
+  <button class="chip" data-max="2000" aria-pressed="false">上限<b>〜2,000円</b></button>
+  <button class="chip" id="cTime" aria-pressed="true">時間貸</button>
+  <button class="chip" id="cRes" aria-pressed="true">予約制</button>
+  <button class="chip" id="cUnk" aria-pressed="true">料金不明も表示</button>
+  <button class="chip" id="cFav" aria-pressed="false">★お気に入り</button>
+</div>
+
+<div class="sheet" id="sheet" role="dialog" aria-modal="false" aria-labelledby="sTitle">
+  <div class="grab"></div>
+  <button class="close" id="sClose" aria-label="閉じる">✕</button>
+  <div id="sBody"></div>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+{
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const yen = n => n == null ? '—' : (n === 0 ? '無料' : n.toLocaleString('ja-JP') + '円');
+const store = {
+  get(k, d) { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)) } catch {} }
+};
+let favs = new Set(store.get('bp.favs', []));
+let reports = store.get('bp.reports', {});   // id -> [{t:ms, s:'ok'|'full'}]
+const f = Object.assign({max: 0, time: true, res: true, unk: true, fav: false}, store.get('bp.filter', {}));
+
+const map = L.map('map', {zoomControl: false, preferCanvas: true}).setView(store.get('bp.view', [35.681, 139.767]), store.get('bp.zoom', 13));
+L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+  maxZoom: 18, minZoom: 9,
+  attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html">地理院タイル</a> | データ © JMPSA, © OpenStreetMap contributors'
+}).addTo(map);
+map.on('moveend', () => { const c = map.getCenter(); store.set('bp.view', [c.lat, c.lng]); store.set('bp.zoom', map.getZoom()) });
+
+const cluster = L.markerClusterGroup({chunkedLoading: true, maxClusterRadius: z => z >= 16 ? 25 : 50, disableClusteringAtZoom: 17, showCoverageOnHover: false});
+map.addLayer(cluster);
+
+let lots = [], built = '', meMarker = null;
+
+function tier(p) {
+  if (p.max == null) return 0;
+  return p.max <= 500 ? 1 : p.max <= 1000 ? 2 : p.max <= 2000 ? 3 : 4;
+}
+function label(p) {
+  if (p.max != null) return p.max === 0 ? '無料' : '¥' + p.max.toLocaleString('ja-JP');
+  if (p.hour != null) return '¥' + p.hour + '/h';
+  return '?';
+}
+function icon(p) {
+  const cls = `pin t${tier(p)}${p.kind === 'reserve' ? ' r' : ''}${favs.has(p.id) ? ' fav' : ''}`;
+  return L.divIcon({html: `<span class="${cls}">${esc(label(p))}</span>`, className: '', iconSize: [0, 0]});
+}
+function pass(p) {
+  if (f.fav && !favs.has(p.id)) return false;
+  if (p.kind === 'reserve' ? !f.res : !f.time) return false;
+  if (f.max) {
+    if (p.max == null) return false;
+    if (p.max > f.max) return false;
+  } else if (p.max == null && p.hour == null && !f.unk) return false;
+  return true;
+}
+function render() {
+  cluster.clearLayers();
+  cluster.addLayers(lots.filter(pass).map(p => p.m));
+  for (const b of document.querySelectorAll('.chip[data-max]')) b.setAttribute('aria-pressed', String(+b.dataset.max === f.max));
+  $('#cTime').setAttribute('aria-pressed', f.time); $('#cRes').setAttribute('aria-pressed', f.res);
+  $('#cUnk').setAttribute('aria-pressed', f.unk); $('#cFav').setAttribute('aria-pressed', f.fav);
+  $('#cUnk').style.display = f.max ? 'none' : '';
+  store.set('bp.filter', f);
+}
+
+function dist(a, b) {
+  const dy = (a.lat - b.lat) * 111000, dx = (a.lng - b.lng) * 111000 * Math.cos(a.lat * Math.PI / 180);
+  return Math.hypot(dx, dy);
+}
+const fmtD = m => m < 1000 ? Math.round(m / 10) * 10 + 'm' : (m / 1000).toFixed(1) + 'km';
+function ago(t) {
+  const m = (Date.now() - t) / 60000;
+  if (m < 60) return Math.max(1, Math.round(m)) + '分前';
+  if (m < 1440) return Math.round(m / 60) + '時間前';
+  return Math.round(m / 1440) + '日前';
+}
+const WD = '日月火水木金土';
+const when = t => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]}) ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}` };
+
+function openSheet(html) { $('#sBody').innerHTML = html; $('#sheet').classList.add('open'); $('#sheet').scrollTop = 0 }
+function closeSheet() { $('#sheet').classList.remove('open') }
+function toast(t) { const el = $('#toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => el.style.display = 'none', 2600) }
+
+function availLinks(p) {
+  const q = encodeURIComponent(p.name);
+  const out = [];
+  if (p.kind === 'reserve') {
+    out.push(`<a class="btn pri" href="${esc(p.url)}" target="_blank" rel="noopener">予約・空き確認（${esc(p.op)}）</a>`);
+  } else {
+    out.push(`<a class="btn" href="https://www.s-park.jp/list/bike?q=${q}" target="_blank" rel="noopener">s-parkで探す</a>`);
+    if (/オートバイ|公社|TOKYO PUBLIC/.test(p.name + p.op))
+      out.push(`<a class="btn" href="https://www.tmpc.or.jp/04_parking/public/pb_livecamera.html" target="_blank" rel="noopener">公社ライブカメラ</a>`);
+  }
+  return out.join('');
+}
+
+function showLot(p) {
+  const rs = (reports[p.id] || []).slice(-5).reverse();
+  const nav = `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`;
+  const src = p.src === 'jmpsa' ? `<a href="${esc(p.url)}" target="_blank" rel="noopener">JMPSAの詳細ページ</a>（収容台数・車両制限・営業時間）`
+                                : `<a href="${esc(p.url)}" target="_blank" rel="noopener">OpenStreetMapの登録情報</a>（料金はJMPSA未掲載のため不明）`;
+  openSheet(`
+    <h2 id="sTitle">${esc(p.name)}</h2>
+    <p class="sub">${p.kind === 'reserve' ? `<span class="tag r">予約制・${esc(p.op)}</span>` : '<span class="tag">時間貸</span>'}${esc(p.addr)}</p>
+    <div class="big">
+      <div><small>1日の上限</small><strong>${yen(p.max)}</strong></div>
+      <div><small>1時間あたり</small><strong>${yen(p.hour)}</strong></div>
+    </div>
+    ${p.price ? `<p class="raw">${esc(p.price)}</p>` : ''}
+    ${p.holiday ? `<p class="sub">定休日・営業：${esc(p.holiday)}</p>` : ''}
+    <div class="row">
+      <a class="btn pri" href="${nav}" target="_blank" rel="noopener">ここへナビ</a>
+      <button class="btn" id="favBtn">${favs.has(p.id) ? '★ お気に入り済み' : '☆ お気に入り'}</button>
+    </div>
+    <div class="row">${availLinks(p)}</div>
+    <div class="row">
+      <button class="btn ok" data-rep="ok">空いてた</button>
+      <button class="btn ng" data-rep="full">満車だった</button>
+    </div>
+    ${rs.length ? `<ul class="hist">${rs.map(r => `<li>${r.s === 'ok' ? '空き' : '満車'}：${when(r.t)}（${ago(r.t)}）</li>`).join('')}</ul>` : '<p class="note">行ってみた結果を記録すると、曜日・時間帯ごとの混み具合が自分用にたまっていきます。</p>'}
+    <p class="note">料金は${esc(built)}時点の掲載情報から自動で読み取った目安です。正確な料金・台数は${src}で確認してください。</p>
+  `);
+  $('#favBtn').onclick = () => {
+    favs.has(p.id) ? favs.delete(p.id) : favs.add(p.id);
+    store.set('bp.favs', [...favs]); p.m.setIcon(icon(p)); showLot(p); if (f.fav) render();
+  };
+  for (const b of document.querySelectorAll('[data-rep]')) b.onclick = () => {
+    (reports[p.id] ||= []).push({t: Date.now(), s: b.dataset.rep});
+    reports[p.id] = reports[p.id].slice(-30); store.set('bp.reports', reports);
+    toast('記録しました'); showLot(p);
+  };
+}
+
+function showNear() {
+  const c = map.getCenter();
+  const near = lots.filter(pass).map(p => [dist(c, p), p]).sort((a, b) => a[0] - b[0]).slice(0, 30);
+  if (!near.length) { openSheet('<h2 id="sTitle">この周辺</h2><p>条件に合う駐輪場がありません。フィルタをゆるめてください。</p>'); return }
+  openSheet(`<h2 id="sTitle">地図の中心から近い順</h2><p class="sub">今のフィルタ条件で${near.length}件</p>
+    <div class="list">${near.map(([d, p], i) => `<button data-i="${i}">
+      <span class="p"><span class="pin t${tier(p)}" style="transform:none">${esc(label(p))}</span></span>
+      <span class="n">${esc(p.name)}<small>${p.kind === 'reserve' ? '予約制・' + esc(p.op) : '時間貸'}${p.hour != null ? ' ・ 1時間' + yen(p.hour) : ''}</small></span>
+      <span class="d">${fmtD(d)}</span></button>`).join('')}</div>`);
+  for (const b of document.querySelectorAll('.list button')) b.onclick = () => {
+    const p = near[+b.dataset.i][1]; map.setView([p.lat, p.lng], Math.max(map.getZoom(), 17)); showLot(p);
+  };
+}
+
+function showInfo() {
+  const n = lots.length, nj = lots.filter(p => p.src === 'jmpsa').length, nm = lots.filter(p => p.max != null).length;
+  openSheet(`<h2 id="sTitle">このアプリについて</h2>
+    <p>東京都内のバイク（自動二輪）駐車場 ${n.toLocaleString()}件を表示しています。ピンの数字は<b>1日の上限料金</b>（無い場合は1時間料金）。点線のピンは予約制（akippa・特P など）です。</p>
+    <p><b>空き状況について：</b>都内のバイク駐車場のリアルタイム満空はオープンデータとして公開されていないため、地図上には出せません。代わりに、予約制は予約サイトで空き確認・事前確保ができ、時間貸は s-park や公社のライブカメラへすぐ飛べるようにしています。「空いてた／満車だった」の記録はこの端末に保存されます。</p>
+    <p class="note">データ：<a href="https://www.jmpsa.or.jp/society/parking/area13/" target="_blank" rel="noopener">日本二輪車普及安全協会「全国バイク駐車場案内」</a>（${nj.toLocaleString()}件、うち上限料金を読み取れたもの ${nm.toLocaleString()}件）、© OpenStreetMap contributors（ODbL）。取得日 ${esc(built)}。料金は自動読み取りのため誤りがありえます。</p>`);
+}
+
+/* 検索：国土地理院 住所検索API */
+let sTimer;
+async function geocode(q) {
+  const box = $('#results');
+  if (!q.trim()) { box.style.display = 'none'; return }
+  try {
+    const r = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q));
+    const js = await r.json();
+    const hits = js.filter(h => /東京都/.test(h.properties.title) || !/[都道府県]/.test(h.properties.title.slice(0, 4))).slice(0, 8);
+    const local = lots.filter(p => p.name.includes(q)).slice(0, 5);
+    const items = [...local.map(p => ({t: '🅿 ' + p.name, ll: [p.lat, p.lng], p})),
+                   ...hits.map(h => ({t: h.properties.title, ll: [h.geometry.coordinates[1], h.geometry.coordinates[0]]}))];
+    box.innerHTML = items.length ? items.map((it, i) => `<button data-i="${i}">${esc(it.t)}</button>`).join('') : '<button disabled>見つかりませんでした</button>';
+    box.style.display = 'block';
+    for (const b of box.querySelectorAll('button[data-i]')) b.onclick = () => {
+      const it = items[+b.dataset.i]; box.style.display = 'none'; $('#q').blur();
+      map.setView(it.ll, 16); it.p ? showLot(it.p) : setTimeout(showNear, 400);
+    };
+  } catch { toast('検索に失敗しました') }
+}
+$('#sform').addEventListener('submit', e => { e.preventDefault(); geocode($('#q').value) });
+$('#q').addEventListener('input', e => { clearTimeout(sTimer); sTimer = setTimeout(() => geocode(e.target.value), 500) });
+map.on('click', () => { $('#results').style.display = 'none'; closeSheet() });
+
+$('#locBtn').onclick = () => {
+  if (!navigator.geolocation) return toast('現在地が使えません');
+  toast('現在地を取得中…');
+  navigator.geolocation.getCurrentPosition(pos => {
+    const ll = [pos.coords.latitude, pos.coords.longitude];
+    meMarker ? meMarker.setLatLng(ll) : (meMarker = L.marker(ll, {icon: L.divIcon({html: '<div class="me"></div>', className: '', iconSize: [16, 16]}), interactive: false}).addTo(map));
+    map.setView(ll, 16); setTimeout(showNear, 400);
+  }, () => toast('現在地を取得できませんでした'), {enableHighAccuracy: true, timeout: 10000});
+};
+$('#nearBtn').onclick = showNear;
+$('#infoBtn').onclick = showInfo;
+$('#sClose').onclick = closeSheet;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSheet() });
+
+$('#chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  if (b.dataset.max) f.max = f.max === +b.dataset.max ? 0 : +b.dataset.max;
+  else if (b.id === 'cTime') f.time = !f.time;
+  else if (b.id === 'cRes') f.res = !f.res;
+  else if (b.id === 'cUnk') f.unk = !f.unk;
+  else if (b.id === 'cFav') f.fav = !f.fav;
+  render();
+});
+
+fetch('data/parking.json').then(r => r.json()).then(d => {
+  built = d.built;
+  const ix = Object.fromEntries(d.cols.map((c, i) => [c, i]));
+  lots = d.rows.map(r => Object.fromEntries(d.cols.map(c => [c, r[ix[c]]])));
+  for (const p of lots) {
+    p.m = L.marker([p.lat, p.lng], {icon: icon(p), title: p.name});
+    p.m.on('click', () => showLot(p));
+  }
+  render();
+  $('#loading').remove();
+}).catch(() => { $('#loading').textContent = 'データを読み込めませんでした。再読み込みしてください。' });
+}
+</script>
+</body>
+</html>
